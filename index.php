@@ -13,7 +13,7 @@ $v = fn($f) => @filemtime(__DIR__ . '/' . $f) ?: 1;
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Price Tracker</title>
-<meta name="description" content="Track prices from Best Buy Canada, Canada Computers and Amazon.ca.">
+<meta name="description" content="Track prices from Best Buy Canada, Canada Computers, Amazon.ca and Amazon.de.">
 <meta name="color-scheme" content="light dark">
 <link rel="stylesheet" href="<?= $basis ?>stil.css?v=<?= $v('stil.css') ?>">
 <script src="<?= $basis ?>app.js?v=<?= $v('app.js') ?>" defer></script>

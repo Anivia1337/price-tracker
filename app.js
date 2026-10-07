@@ -25,8 +25,10 @@
 
   const leer = $("leer"), meldung = $("meldung"), form = $("neu"), anzahl = $("anzahl-ca");
   const vorlage = $("vorlage").content.firstElementChild;
-  const SHOPS = { bestbuy: "Best Buy", cc: "Canada Computers", amazon: "Amazon.ca" };
-  const cad = new Intl.NumberFormat("en-CH", { style: "currency", currency: "CAD" });
+  const SHOPS = { bestbuy: "Best Buy", cc: "Canada Computers", amazon: "Amazon.ca", amazon_de: "Amazon.de" };
+  // Eintraege ohne "waehrung" sind aus der Zeit, als es nur kanadische Shops gab
+  const formate = {};
+  const geld = (e) => formate[e.waehrung || "CAD"] ||= new Intl.NumberFormat("en-CH", { style: "currency", currency: e.waehrung || "CAD" });
   const rel = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
 
   function vor(ts) {
@@ -46,6 +48,7 @@
 
   function zeile(e) {
     const li = vorlage.cloneNode(true);
+    const cad = geld(e);
     const q = (s) => li.querySelector(s);
     li.dataset.search = ((e.titel || "") + " " + (SHOPS[e.shop] || "") + " " + e.ref).toLowerCase();
     q(".bild").href = q(".titel").href = e.url;

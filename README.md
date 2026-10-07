@@ -1,8 +1,8 @@
 # Price Tracker
 
-Tracks product prices at Canadian online shops and emails you when a price
-drops. Paste a Best Buy SKU, an Amazon ASIN or a product link, and the item
-stays on a shared list with its current price, the change since it was added,
+Tracks product prices at Canadian online shops and Amazon.de and emails you
+when a price drops. Paste a Best Buy SKU, an Amazon ASIN or a product link,
+and the item stays on a shared list with its current price, the change since it was added,
 the lowest price seen and a small price-history chart. Plain PHP and
 JavaScript, no framework, no database.
 
@@ -13,10 +13,11 @@ Supported shops:
 | Best Buy Canada | SKU (`19837076`) or product link | Best Buy's public JSON product API |
 | Canada Computers | product link | schema.org data + `product:price:amount` meta tag |
 | Amazon.ca | ASIN (`B0…`) or product link | the *new* offer of the buy box only (no used offers, no prices of recommended products) |
+| Amazon.de | product link | same as Amazon.ca, prices in EUR (the currency cookie is set, otherwise Amazon shows a Swiss server CHF) |
 
-Newegg.ca, Staples.ca, Memory Express, Walmart.ca, London Drugs and Visions
-answer server requests with a Cloudflare/PerimeterX bot check, so they are not
-supported. The tracker only ever fetches these fixed shop hosts — never a URL
+Newegg.ca, Staples.ca, Memory Express, Walmart.ca, London Drugs, Visions and
+Mindfactory answer server requests with a bot check (Cloudflare, PerimeterX or
+their own), so they are not supported. The tracker only ever fetches these fixed shop hosts — never a URL
 taken as-is from the input.
 
 ## How it works

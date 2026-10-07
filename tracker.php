@@ -9,7 +9,9 @@
  *   php tracker.php                        -> Cronjob: alle veralteten Eintraege nachholen
  *
  * Unterstuetzt nur Shops, deren Seiten der Server ohne Bot-Sperre lesen kann:
- * Best Buy Canada (JSON-API), Canada Computers (schema.org/Meta), Amazon.ca.
+ * Best Buy Canada (JSON-API), Canada Computers (schema.org/Meta), Amazon.ca
+ * und Amazon.de. Mindfactory zeigt dem Server nur eine "SECURITY CHECK"-Seite
+ * (geprueft am 2026-10-07).
  * Newegg, Staples, Memory Express, Walmart und London Drugs liefern hinter
  * Cloudflare/PerimeterX nur eine Captcha-Seite - geprueft am 2026-10-01.
  * Abgerufen werden ausschliesslich diese festen Hosts, nie eine frei
@@ -66,7 +68,7 @@ function aendern(callable $fn, string $datei = DATEI)
 
 // ---- Abruf -----------------------------------------------------------------
 
-function holen(string $url): string
+function holen(string $url, array $kopf = []): string
 {
     $c = curl_init($url);
     curl_setopt_array($c, [
@@ -76,7 +78,7 @@ function holen(string $url): string
         CURLOPT_TIMEOUT        => 15,
         CURLOPT_ENCODING       => '',
         CURLOPT_USERAGENT      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36',
-        CURLOPT_HTTPHEADER     => ['Accept-Language: en-CA,en;q=0.9'],
+        CURLOPT_HTTPHEADER     => $kopf ?: ['Accept-Language: en-CA,en;q=0.9'],   // eigene Kopfzeilen ersetzen die Vorgabe
     ]);
     $body = (string) curl_exec($c);
     $code = curl_getinfo($c, CURLINFO_HTTP_CODE);
@@ -91,6 +93,10 @@ function zahl($v): ?float
     $v = str_replace([',', '$', ' '], '', (string) $v);
     return is_numeric($v) ? (float) $v : null;
 }
+
+// Waehrung je Shop. Eintraege ohne Feld "waehrung" stammen aus der Zeit, als
+// es nur kanadische Shops gab, und sind CAD.
+const WAEHRUNG = ['bestbuy' => 'CAD', 'cc' => 'CAD', 'amazon' => 'CAD', 'amazon_de' => 'EUR'];
 
 // Eingabe -> [shop, ref, url]. Wirft bei allem, was kein bekannter Shop ist.
 function erkennen(string $in): array
@@ -108,11 +114,14 @@ function erkennen(string $in): array
     if ($host === 'amazon.ca' && preg_match('#/(?:dp|gp/product)/([A-Z0-9]{10})#i', $pfad, $m)) {
         return ['amazon', strtoupper($m[1]), 'https://www.amazon.ca/dp/' . strtoupper($m[1])];
     }
+    if ($host === 'amazon.de' && preg_match('#/(?:dp|gp/product)/([A-Z0-9]{10})#i', $pfad, $m)) {
+        return ['amazon_de', strtoupper($m[1]), 'https://www.amazon.de/dp/' . strtoupper($m[1])];
+    }
     if ($host === 'canadacomputers.com' && preg_match('#^/(en|fr)/[\w\-/]+\.html$#', $pfad)) {
         $url = "https://www.canadacomputers.com$pfad";
         return ['cc', $url, $url];
     }
-    throw new InvalidArgumentException('Not recognised. Enter a Best Buy SKU, an Amazon ASIN or a product link from bestbuy.ca, canadacomputers.com or amazon.ca.');
+    throw new InvalidArgumentException('Not recognised. Enter a Best Buy SKU, an Amazon.ca ASIN or a product link from bestbuy.ca, canadacomputers.com, amazon.ca or amazon.de.');
 }
 
 // -> [titel, bild, preis, regulaer]
@@ -125,8 +134,12 @@ function abrufen(string $shop, string $ref): array
         return [$d['name'], $bild, zahl($d['salePrice'] ?? null), zahl($d['regularPrice'] ?? null)];
     }
 
-    if ($shop === 'amazon') {
-        $h = holen("https://www.amazon.ca/dp/$ref");
+    if ($shop === 'amazon' || $shop === 'amazon_de') {
+        // Amazon.de zeigt einem Server in der Schweiz Preise in CHF - das
+        // Waehrungs-Cookie (dieselbe Einstellung wie im Shop-Menue) stellt auf Euro.
+        $de = $shop === 'amazon_de';
+        $h  = $de ? holen("https://www.amazon.de/dp/$ref", ['Accept-Language: de-DE,de;q=0.9', 'Cookie: i18n-prefs=EUR'])
+                  : holen("https://www.amazon.ca/dp/$ref");
         if (stripos($h, 'captcha') !== false && stripos($h, 'productTitle') === false) throw new RuntimeException('Amazon is asking for a captcha');
         preg_match('#id="productTitle"[^>]*>\s*(.*?)\s*<#s', $h, $t);
         preg_match('#data-old-hires="([^"]+)|"landingImageUrl":"([^"]+)#', $h, $b);
@@ -139,7 +152,10 @@ function abrufen(string $shop, string $ref): array
         $preis = null;
         if (preg_match('#twister-plus-buying-options-price-data">(.*?)</div>#s', $h, $j)) {
             foreach (json_decode(html_entity_decode($j[1]), true)['desktop_buybox_group_1'] ?? [] as $o) {
-                if (($o['buyingOptionType'] ?? '') === 'NEW') { $preis = zahl($o['priceAmount'] ?? null); break; }
+                if (($o['buyingOptionType'] ?? '') !== 'NEW') continue;
+                if ($de && ($o['currencySymbol'] ?? '') !== '€') throw new RuntimeException('Amazon.de did not show the price in euros');
+                $preis = zahl($o['priceAmount'] ?? null);
+                break;
             }
         }
         if ($preis === null) throw new RuntimeException('No new offer on Amazon right now');
@@ -148,7 +164,8 @@ function abrufen(string $shop, string $ref): array
         $regulaer = null;
         if (($i = strpos($h, 'id="corePriceDisplay_desktop_feature_div"')) !== false
             && preg_match('#data-a-strike="true"[^>]*>\s*<span class="a-offscreen">\$?([\d,.]+)#', substr($h, $i, 20000), $r)) {
-            $regulaer = zahl($r[1]);
+            // Amazon.de schreibt "1.299,00 €"
+            $regulaer = zahl($de ? str_replace(['.', ','], ['', '.'], $r[1]) : $r[1]);
         }
         return [html_entity_decode(trim($t[1])), ($b[1] ?? '') ?: ($b[2] ?? ''), $preis, $regulaer];
     }
@@ -185,9 +202,10 @@ function einpflegen(array &$e, array $r): ?float
 
 // ---- Preisalarm ------------------------------------------------------------
 
-function cad(?float $p): string
+function betrag(?float $p, array $e): string
 {
-    return $p === null ? '-' : 'CA$ ' . number_format($p, 2, '.', "'");
+    $zeichen = ['CAD' => 'CA$', 'EUR' => 'EUR'][$e['waehrung'] ?? 'CAD'] ?? '';
+    return $p === null ? '-' : $zeichen . ' ' . number_format($p, 2, '.', "'");
 }
 
 // Betreff kuerzen und kodieren. Reines ASCII geht unveraendert raus; sonst in
@@ -246,7 +264,7 @@ function alarmieren(array $gefallen): void
         [$e, $alt] = $gefallen[$a['id']];
         try {
             mailen($a['email'], 'Price drop: ' . $e['titel'],
-                "{$e['titel']}\n\nNow " . cad($e['preis']) . ' (was ' . cad($alt) . ")\n{$e['url']}\n\nAll tracked prices: " . SEITE,
+                "{$e['titel']}\n\nNow " . betrag($e['preis'], $e) . ' (was ' . betrag($alt, $e) . ")\n{$e['url']}\n\nAll tracked prices: " . SEITE,
                 $a['token']);
         } catch (Throwable $t) {
             error_log('deals: Preisalarm an ' . $a['email'] . ' gescheitert: ' . $t->getMessage());
@@ -269,7 +287,7 @@ function abonnieren(array $e, string $email): string
     if ($neu === 'schon') return 'That address already gets alerts for this product.';
     try {
         mailen($email, 'Price alert set: ' . $e['titel'],
-            "You'll get an email when the price of this product drops.\n\n{$e['titel']}\nCurrently " . cad($e['preis']) . "\n{$e['url']}",
+            "You'll get an email when the price of this product drops.\n\n{$e['titel']}\nCurrently " . betrag($e['preis'], $e) . "\n{$e['url']}",
             $token);
     } catch (Throwable $t) {
         error_log('deals: Bestaetigung an ' . $email . ' gescheitert: ' . $t->getMessage());
@@ -381,7 +399,7 @@ try {
                 antwort(['hinweis' => 'Already on the list. ' . abonnieren($e, $email)]);
             }
 
-            $e = ['id' => $id, 'shop' => $shop, 'ref' => $ref, 'url' => $url, 'verlauf' => [], 'preis' => null, 'hinzu' => time()];
+            $e = ['id' => $id, 'shop' => $shop, 'ref' => $ref, 'url' => $url, 'waehrung' => WAEHRUNG[$shop], 'verlauf' => [], 'preis' => null, 'hinzu' => time()];
             einpflegen($e, abrufen($shop, $ref));   // schlaegt fehl -> nichts gespeichert
 
             $ok = aendern(function (&$d) use ($e) {
