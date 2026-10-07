@@ -12,7 +12,7 @@ Supported shops:
 |---|---|---|
 | Best Buy Canada | SKU (`19837076`) or product link | Best Buy's public JSON product API |
 | Canada Computers | product link | schema.org data + `product:price:amount` meta tag |
-| Amazon.ca | ASIN (`B0…`) or product link | the *new* offer of the buy box only (no used offers, no prices of recommended products) |
+| Amazon.ca | ASIN (`B0…`) or product link | the *new* offer of the buy box only (no used offers, no prices of recommended products); with the multi-row buy box the regular new price, plus a Prime-only deal as extra info |
 | Amazon.de | product link | same as Amazon.ca, prices in EUR (the currency cookie is set, otherwise Amazon shows a Swiss server CHF) |
 
 Newegg.ca, Staples.ca, Memory Express, Walmart.ca, London Drugs, Visions,

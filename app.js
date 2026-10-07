@@ -59,6 +59,7 @@
     q(".titel").textContent = e.titel || e.ref;
     q(".stand").textContent = e.fehler ? e.fehler + " · showing last known price" : "checked " + vor(e.geprueft);
     if (e.fehler) { q(".stand").classList.add("fehler"); li.classList.add("veraltet"); }
+    else if (e.prime) q(".stand").textContent += " · Prime deal " + cad.format(e.prime);
 
     const v = e.verlauf || [];
     q(".jetzt").textContent = e.preis == null ? "–" : cad.format(e.preis);
