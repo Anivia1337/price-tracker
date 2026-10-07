@@ -131,7 +131,7 @@ function erkennen(string $in): array
     throw new InvalidArgumentException('Not recognised. Enter a Best Buy SKU, an Amazon.ca ASIN or a product link from bestbuy.ca, canadacomputers.com, amazon.ca or amazon.de.');
 }
 
-// -> [titel, bild, preis, regulaer, prime-deal (nur Amazon)]
+// -> [titel, bild, preis, regulaer]
 function abrufen(string $shop, string $ref): array
 {
     if ($shop === 'bestbuy') {
@@ -167,17 +167,22 @@ function abrufen(string $shop, string $ref): array
         }
 
         // Andere Kaufbox: mehrere Zeilen untereinander ("Accordion"), z. B.
-        // "Deal Price" (nur fuer Prime), "Non-Deal Price" (Neupreis fuer alle),
-        // "Subscribe & Save". Preis = Neupreis-Zeile, der Prime-Deal kommt als
-        // Zusatzinfo mit. Beide Werte nur aus der eigenen Zeile, nie von woanders.
+        // "Angebotspreis"/"Deal Price" (vorausgewaehlt, Amazon nennt die Zeile
+        // intern primeSavingsUpsell, auf der Seite steht aber kein Prime-Hinweis),
+        // "Normalpreis"/"Non-Deal Price", "Spar-Abo", "Gebraucht".
+        // Preis = Angebot, sonst Normalpreis; der Normalpreis wird Streichpreis.
+        // Werte nur aus der jeweiligen Zeile, nie von woanders auf der Seite.
         $zeile = function (string $id) use ($h, $de): ?float {
             if (($i = strpos($h, 'id="' . $id)) === false) return null;
             if (!preg_match('#a-offscreen">\s*([^<]+)#', substr($h, $i, 5000), $m)) return null;
             if ($de && strpos($m[1], '€') === false) throw new RuntimeException('Amazon.de did not show the price in euros');
             return betragLesen($m[1], $de);
         };
-        if ($preis === null) $preis = $zeile('newAccordionRow');
-        $prime = $zeile('primeSavingsUpsellAccordionRow');
+        $normal = null;
+        if ($preis === null) {
+            $normal = $zeile('newAccordionRow');
+            $preis  = $zeile('primeSavingsUpsellAccordionRow') ?? $normal;
+        }
         if ($preis === null) throw new RuntimeException('No new offer on Amazon right now');
 
         // Streichpreis ("List Price") nur aus dem Preisblock des Artikels selbst
@@ -186,8 +191,8 @@ function abrufen(string $shop, string $ref): array
             && preg_match('#data-a-strike="true"[^>]*>\s*<span class="a-offscreen">\$?([\d,.]+)#', substr($h, $i, 20000), $r)) {
             $regulaer = betragLesen($r[1], $de);
         }
-        return [html_entity_decode(trim($t[1])), ($b[1] ?? '') ?: ($b[2] ?? ''), $preis, $regulaer,
-                $prime !== null && $prime < $preis ? $prime : null];
+        if ($normal !== null && $normal > $preis) $regulaer = max($regulaer ?? 0, $normal);
+        return [html_entity_decode(trim($t[1])), ($b[1] ?? '') ?: ($b[2] ?? ''), $preis, $regulaer];
     }
 
     // Canada Computers: schema.org Product, Preis zusaetzlich als product:price-Meta
@@ -211,7 +216,7 @@ function abrufen(string $shop, string $ref): array
 function einpflegen(array &$e, array $r): ?float
 {
     [$e['titel'], $e['bild'], $preis, $e['regulaer']] = $r;
-    $e['prime'] = $r[4] ?? null;   // Amazon: guenstigerer Deal nur fuer Prime-Mitglieder
+    unset($e['prime']);   // Altlast vom 2026-10-07: Angebot war kurz als "Prime-Deal" gefuehrt
     $e['geprueft'] = time();
     $e['fehler']   = null;
     if ($preis === null) return null;
