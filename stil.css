@@ -1,0 +1,164 @@
+/* Price Tracker - Gestaltung
+   Formensprache: Fluent, wie /pdf. Ruhige Grundflaeche, weisse Karten mit
+   feiner Kontur, ein Akzentblau. Gruen/Rot nur fuer Preisbewegungen.
+   Hell/Dunkel ueber light-dark(): color-scheme auf :root entscheidet, ein
+   Tokenblock genuegt. Keine Webfonts, kein Inline-CSS (CSP style-src 'self'). */
+
+:root {
+  color-scheme: light dark;
+
+  --grund:    light-dark(#f3f3f3, #1f1f1f);
+  --flaeche:  light-dark(#ffffff, #2b2b2b);
+  --leiste:   light-dark(#ffffff, #272727);
+  --senke:    light-dark(#fafafa, #202020);
+  --text:     light-dark(#1b1b1b, #ffffff);
+  --text-2:   light-dark(#616161, #c7c7c7);
+  --text-3:   light-dark(#8a8a8a, #9a9a9a);
+  --linie:    light-dark(#e5e5e5, #383838);
+  --akzent:   light-dark(#0078d4, #60cdff);
+  --auf-akzent: light-dark(#ffffff, #003a50);
+  --akzent-hauch: light-dark(#eff6fc, #133a4d);
+  --hover:    light-dark(rgba(0,0,0,.037), rgba(255,255,255,.06));
+  --runter:   light-dark(#0f7b0f, #6ccb5f);
+  --rauf:     light-dark(#c42b1c, #ff99a4);
+  --schatten: 0 1px 2px rgba(0,0,0,.05);
+  --schatten-hoch: 0 4px 10px rgba(0,0,0,.08);
+
+  --schrift: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  --anzeige: 'Segoe UI Variable Display', 'Segoe UI Semibold', 'Segoe UI', system-ui, sans-serif;
+  --eck: 4px;
+  --eck-karte: 8px;
+}
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"]  { color-scheme: dark; }
+
+/* ---- Grundlage ------------------------------------------------------------ */
+
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--grund);
+  color: var(--text);
+  font: 14px/1.45 var(--schrift);
+  -webkit-font-smoothing: antialiased;
+}
+
+.sinnbilder { display: none; }
+.sym { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.nurlesbar { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+a { color: inherit; }
+button, input { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--akzent); outline-offset: 2px; }
+
+/* ---- Titelleiste ---------------------------------------------------------- */
+
+.kopf {
+  position: sticky; top: 0; z-index: 2;
+  display: flex; align-items: center; gap: 16px;
+  padding: 8px 16px;
+  background: var(--leiste);
+  border-bottom: 1px solid var(--linie);
+}
+.marke { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+.marke h1 { margin: 0; font: 600 15px/1 var(--anzeige); }
+.marke-zeichen { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 6px; background: var(--akzent); color: var(--auf-akzent); }
+.kopf-rechts { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+.rundknopf { display: grid; place-items: center; width: 32px; height: 32px; border: 0; border-radius: var(--eck); background: none; cursor: pointer; text-decoration: none; }
+.rundknopf:hover { background: var(--hover); }
+
+/* ---- Bereiche ------------------------------------------------------------- */
+
+.haupt { max-width: 1240px; margin: 0 auto; padding: 24px 16px 64px; }
+.bereich + .bereich { margin-top: 40px; }
+.bereich-kopf { margin-bottom: 14px; }
+.bereich-kopf h2 { display: flex; align-items: center; gap: 10px; margin: 0; font: 600 22px/1.2 var(--anzeige); }
+.bereich-kopf p { margin: 4px 0 0; color: var(--text-2); }
+.zahl { padding: 1px 8px; border-radius: 10px; background: var(--akzent-hauch); color: var(--akzent); font: 600 12px/1.6 var(--schrift); }
+.zahl:empty { display: none; }
+
+.leer { color: var(--text-2); text-align: center; padding: 32px 0; margin: 0; }
+
+.eingabe { display: flex; gap: 8px; max-width: 860px; margin-bottom: 6px; }
+.eingabe #email { flex: 0 1 260px; }
+.fein { margin: 0 0 14px; font-size: 12px; color: var(--text-3); }
+.eingabe input {
+  flex: 1; min-width: 0; height: 36px; padding: 0 12px;
+  background: var(--flaeche); border: 1px solid var(--linie); border-radius: var(--eck);
+}
+.eingabe input::placeholder { color: var(--text-3); }
+.knopf {
+  display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 16px;
+  border: 0; border-radius: var(--eck); background: var(--akzent); color: var(--auf-akzent);
+  font-weight: 600; cursor: pointer;
+}
+.knopf:hover { filter: brightness(1.08); }
+.knopf:disabled { opacity: .55; cursor: progress; }
+.meldung { margin: -6px 0 14px; font-size: 13px; color: var(--text-2); }
+.meldung.fehler, .stand.fehler { color: var(--rauf); }
+
+/* ---- Karten --------------------------------------------------------------- */
+
+.raster { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+
+.karte {
+  display: grid; align-content: start; gap: 2px 12px; position: relative;
+  padding: 12px 14px 10px; background: var(--flaeche);
+  border: 1px solid var(--linie); border-radius: var(--eck-karte);
+  box-shadow: var(--schatten);
+}
+.karte:hover { box-shadow: var(--schatten-hoch); }
+.produkt { grid-template-columns: 1fr 96px; grid-template-areas: "bild bild" "info info" "jetzt kurve" "diff kurve" "tief weg"; }
+
+.bild {
+  grid-area: bild; position: relative; display: grid; place-items: center;
+  height: 160px; margin: -12px -14px 10px; padding: 12px;
+  background: #fff; border-bottom: 1px solid var(--linie);
+  border-radius: var(--eck-karte) var(--eck-karte) 0 0; overflow: hidden;
+}
+.bild img { width: 100%; height: 100%; object-fit: contain; }
+
+.info { grid-area: info; display: flex; flex-direction: column; min-width: 0; margin-bottom: 8px; }
+.shop { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--akzent); }
+.shop img { width: 16px; height: 16px; border-radius: 3px; }
+.titel { font-weight: 600; text-decoration: none; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.titel:hover { text-decoration: underline; }
+.stand { grid-area: stand; font-size: 12px; color: var(--text-3); }
+.produkt .stand { margin-top: 2px; }
+
+
+.jetzt { grid-area: jetzt; font: 600 20px/1.2 var(--anzeige); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.regulaer { font: 400 12px var(--schrift); color: var(--text-3); }
+.diff, .tief { font-size: 12.5px; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--text-2); }
+.diff { grid-area: diff; }
+.tief { grid-area: tief; }
+.diff.runter { color: var(--runter); }
+.diff.rauf { color: var(--rauf); }
+.tiefststand { border-color: var(--runter); }
+.veraltet .jetzt, .veraltet .diff { color: var(--text-3); }
+
+.kurve { grid-area: kurve; width: 100%; height: 32px; overflow: visible; }
+.kurve polyline { fill: none; stroke: var(--akzent); stroke-width: 1.6; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+
+.weg { grid-area: weg; justify-self: end; display: grid; place-items: center; width: 30px; height: 30px; border: 0; border-radius: var(--eck); background: none; color: var(--text-3); cursor: pointer; }
+.weg:hover { background: var(--hover); color: var(--rauf); }
+
+/* ---- Abmeldeseite (tracker.php?abmelden=) -------------------------------- */
+
+.hinweiskarte {
+  max-width: 480px; margin: 48px auto 0; padding: 28px 28px 20px;
+  background: var(--flaeche); border: 1px solid var(--linie); border-radius: var(--eck-karte);
+  box-shadow: var(--schatten);
+}
+.hinweiskarte h2 { margin: 0 0 8px; font: 600 22px/1.2 var(--anzeige); }
+.hinweiskarte p { margin: 0 0 16px; color: var(--text-2); }
+.hinweiskarte b { color: var(--text); font-weight: 600; }
+.hinweiskarte form { margin: 0 0 16px; }
+.hinweiskarte a { color: var(--akzent); }
+
+@media (max-width: 720px) {
+  .eingabe { flex-direction: column; }
+  .eingabe input, .eingabe #email { flex: none; }
+}

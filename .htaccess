@@ -1,0 +1,20 @@
+# Price Tracker - tracker.php schreibt nach data/ (per data/.htaccess gesperrt).
+Options -Indexes
+
+# Ohne das leitet mod_dir hinter einem TLS-Proxy auf http:// um.
+DirectorySlash Off
+DirectoryIndex index.php
+
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set Referrer-Policy "no-referrer"
+
+  # Produktbilder kommen direkt von den Shop-CDNs - deshalb img-src https:.
+  Header always set Content-Security-Policy "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' https: data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+</IfModule>
+
+# Git-Repository und Repo-Dateien nicht ausliefern
+RedirectMatch 404 "/\.git(attributes|ignore)?(/|$)"
+<FilesMatch "^(README\.md|LICENSE|teil\.php)$">
+  Require all denied
+</FilesMatch>

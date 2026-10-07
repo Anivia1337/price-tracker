@@ -1,0 +1,3 @@
+# Produktliste und E-Mail-Adressen der Preisalarme gehoeren nicht ins Repository.
+data/*
+!data/.htaccess
