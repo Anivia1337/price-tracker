@@ -26,6 +26,7 @@
   const leer = $("leer"), meldung = $("meldung"), form = $("neu"), anzahl = $("anzahl-ca");
   const vorlage = $("vorlage").content.firstElementChild;
   const SHOPS = { bestbuy: "Best Buy", cc: "Canada Computers", amazon: "Amazon.ca", amazon_de: "Amazon.de" };
+  const LAND  = { bestbuy: "ca", cc: "ca", amazon: "ca", amazon_de: "de" };
   // Eintraege ohne "waehrung" sind aus der Zeit, als es nur kanadische Shops gab
   const formate = {};
   const geld = (e) => formate[e.waehrung || "CAD"] ||= new Intl.NumberFormat("en-CH", { style: "currency", currency: e.waehrung || "CAD" });
@@ -50,6 +51,7 @@
     const li = vorlage.cloneNode(true);
     const cad = geld(e);
     const q = (s) => li.querySelector(s);
+    li.dataset.land = LAND[e.shop] || "";
     li.dataset.search = ((e.titel || "") + " " + (SHOPS[e.shop] || "") + " " + e.ref).toLowerCase();
     q(".bild").href = q(".titel").href = e.url;
     if (e.bild) q("img").src = e.bild; else q("img").remove();
@@ -80,6 +82,11 @@
     return li;
   }
 
+  // Gastseite (z. B. die Laenderauswahl auf /deals) ueber Aenderungen informieren
+  function melde(land) {
+    document.dispatchEvent(new CustomEvent("tracker-geladen", { detail: { land } }));
+  }
+
   function zaehlen() {
     leer.hidden = liste.children.length > 0;
     anzahl.textContent = liste.children.length || "";
@@ -105,7 +112,7 @@
     melden("Fetching price …");
     try {
       const { eintrag, hinweis } = await api({ aktion: "neu", eingabe: form.eingabe.value, email: form.email.value });
-      if (eintrag) { liste.prepend(zeile(eintrag)); zaehlen(); }
+      if (eintrag) { liste.prepend(zeile(eintrag)); zaehlen(); melde(LAND[eintrag.shop]); }
       form.reset();
       melden(hinweis || "");
     } catch (x) { melden(x.message, true); }
@@ -114,14 +121,13 @@
 
   async function entfernen(e, li) {
     if (!confirm("Remove “" + (e.titel || e.ref) + "” from the list?")) return;
-    try { await api({ aktion: "weg", id: e.id }); li.remove(); zaehlen(); }
+    try { await api({ aktion: "weg", id: e.id }); li.remove(); zaehlen(); melde(); }
     catch (x) { melden(x.message, true); }
   }
 
   api().then((j) => {
     liste.replaceChildren(...j.produkte.map(zeile));
     zaehlen();
-    // eingebunden: die Suche der Gastseite neu anwenden
-    document.dispatchEvent(new Event("tracker-geladen"));
+    melde();
   }).catch((x) => melden(x.message, true));
 })();

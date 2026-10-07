@@ -10,7 +10,7 @@
   <symbol id="s-weg" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></symbol>
 </svg>
 
-<section class="bereich" aria-labelledby="t-ca">
+<section class="bereich tracker" aria-labelledby="t-ca">
   <div class="bereich-kopf">
     <h2 id="t-ca">Tracked prices <span class="zahl" id="anzahl-ca"></span></h2>
     <p>Best Buy Canada, Canada Computers and Amazon.ca in CAD, Amazon.de in EUR &mdash; checked every hour.</p>

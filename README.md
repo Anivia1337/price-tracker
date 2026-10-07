@@ -15,8 +15,8 @@ Supported shops:
 | Amazon.ca | ASIN (`B0…`) or product link | the *new* offer of the buy box only (no used offers, no prices of recommended products) |
 | Amazon.de | product link | same as Amazon.ca, prices in EUR (the currency cookie is set, otherwise Amazon shows a Swiss server CHF) |
 
-Newegg.ca, Staples.ca, Memory Express, Walmart.ca, London Drugs, Visions and
-Mindfactory answer server requests with a bot check (Cloudflare, PerimeterX or
+Newegg.ca, Staples.ca, Memory Express, Walmart.ca, London Drugs, Visions,
+Mindfactory and Geizhals answer server requests with a bot check (Cloudflare, PerimeterX or
 their own), so they are not supported. The tracker only ever fetches these fixed shop hosts — never a URL
 taken as-is from the input.
 
