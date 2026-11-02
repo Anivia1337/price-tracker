@@ -9,8 +9,8 @@
  *   php tracker.php                        -> Cronjob: alle veralteten Eintraege nachholen
  *
  * Unterstuetzt nur Shops, deren Seiten der Server ohne Bot-Sperre lesen kann:
- * Best Buy Canada (JSON-API), Canada Computers (schema.org/Meta), Amazon.ca
- * und Amazon.de. Mindfactory zeigt dem Server nur eine "SECURITY CHECK"-Seite
+ * Best Buy Canada (JSON-API), Canada Computers (schema.org/Meta) und Amazon
+ * in mehreren Laendern (Tabelle AMAZON). Mindfactory zeigt dem Server nur eine "SECURITY CHECK"-Seite
  * (geprueft am 2026-10-07).
  * Newegg, Staples, Memory Express, Walmart und London Drugs liefern hinter
  * Cloudflare/PerimeterX nur eine Captcha-Seite - geprueft am 2026-10-01.
@@ -94,15 +94,36 @@ function zahl($v): ?float
     return is_numeric($v) ? (float) $v : null;
 }
 
+// Amazon-Laender: Shop-Kennung => [Domain, Sprache, Waehrung, Dezimalkomma].
+// Geprueft am 2026-11-02 von cernserver aus. Nicht dabei: amazon.co.uk und
+// amazon.es (Seite kommt, Preis nicht lesbar), .pl/.co.jp/.com.au (keine
+// Produktseiten). "amazon" ist Amazon.ca - die Kennung stammt aus der Zeit,
+// als es nur Kanada gab.
+const AMAZON = [
+    'amazon'    => ['amazon.ca',     'en-CA', 'CAD', false],
+    'amazon_us' => ['amazon.com',    'en-US', 'USD', false],
+    'amazon_mx' => ['amazon.com.mx', 'es-MX', 'MXN', false],
+    'amazon_de' => ['amazon.de',     'de-DE', 'EUR', true],
+    'amazon_fr' => ['amazon.fr',     'fr-FR', 'EUR', true],
+    'amazon_it' => ['amazon.it',     'it-IT', 'EUR', true],
+    'amazon_nl' => ['amazon.nl',     'nl-NL', 'EUR', true],
+    'amazon_be' => ['amazon.com.be', 'fr-BE', 'EUR', true],
+    'amazon_se' => ['amazon.se',     'sv-SE', 'SEK', true],
+];
+
 // Waehrung je Shop. Eintraege ohne Feld "waehrung" stammen aus der Zeit, als
 // es nur kanadische Shops gab, und sind CAD.
-const WAEHRUNG = ['bestbuy' => 'CAD', 'cc' => 'CAD', 'amazon' => 'CAD', 'amazon_de' => 'EUR'];
+const WAEHRUNG = ['bestbuy' => 'CAD', 'cc' => 'CAD'] + [
+    'amazon' => 'CAD', 'amazon_us' => 'USD', 'amazon_mx' => 'MXN', 'amazon_de' => 'EUR', 'amazon_fr' => 'EUR',
+    'amazon_it' => 'EUR', 'amazon_nl' => 'EUR', 'amazon_be' => 'EUR', 'amazon_se' => 'SEK',
+];
 
-// Amazon-Preistext -> Zahl. Amazon.ca: "$1,299.00", Amazon.de: "1.299,00 €".
-function betragLesen(string $text, bool $de): ?float
+// Amazon-Preistext -> Zahl. "$1,299.00" bzw. mit Dezimalkomma "1.299,00 €",
+// "€ 212,95", "1 890,00 kr".
+function betragLesen(string $text, bool $komma): ?float
 {
     $text = preg_replace('/[^\d.,]/u', '', $text);
-    return zahl($de ? str_replace(['.', ','], ['', '.'], $text) : $text);
+    return zahl($komma ? str_replace(['.', ','], ['', '.'], $text) : $text);
 }
 
 // Eingabe -> [shop, ref, url]. Wirft bei allem, was kein bekannter Shop ist.
@@ -118,17 +139,16 @@ function erkennen(string $in): array
     if ($host === 'bestbuy.ca' && preg_match('#/(\d{7,9})(?:\.aspx)?/?$#', $pfad, $m)) {
         return ['bestbuy', $m[1], "https://www.bestbuy.ca/en-ca/product/{$m[1]}"];
     }
-    if ($host === 'amazon.ca' && preg_match('#/(?:dp|gp/product)/([A-Z0-9]{10})#i', $pfad, $m)) {
-        return ['amazon', strtoupper($m[1]), 'https://www.amazon.ca/dp/' . strtoupper($m[1])];
-    }
-    if ($host === 'amazon.de' && preg_match('#/(?:dp|gp/product)/([A-Z0-9]{10})#i', $pfad, $m)) {
-        return ['amazon_de', strtoupper($m[1]), 'https://www.amazon.de/dp/' . strtoupper($m[1])];
+    foreach (AMAZON as $shop => [$domain]) {
+        if ($host === $domain && preg_match('#/(?:dp|gp/product)/([A-Z0-9]{10})#i', $pfad, $m)) {
+            return [$shop, strtoupper($m[1]), "https://www.$domain/dp/" . strtoupper($m[1])];
+        }
     }
     if ($host === 'canadacomputers.com' && preg_match('#^/(en|fr)/[\w\-/]+\.html$#', $pfad)) {
         $url = "https://www.canadacomputers.com$pfad";
         return ['cc', $url, $url];
     }
-    throw new InvalidArgumentException('Not recognised. Enter a Best Buy SKU, an Amazon.ca ASIN or a product link from bestbuy.ca, canadacomputers.com, amazon.ca or amazon.de.');
+    throw new InvalidArgumentException('Not recognised. Enter a Best Buy SKU, an Amazon.ca ASIN or a product link from bestbuy.ca, canadacomputers.com or Amazon (.ca, .com, .com.mx, .de, .fr, .it, .nl, .com.be, .se).');
 }
 
 // -> [titel, bild, preis, regulaer]
@@ -141,12 +161,14 @@ function abrufen(string $shop, string $ref): array
         return [$d['name'], $bild, zahl($d['salePrice'] ?? null), zahl($d['regularPrice'] ?? null)];
     }
 
-    if ($shop === 'amazon' || $shop === 'amazon_de') {
-        // Amazon.de zeigt einem Server in der Schweiz Preise in CHF - das
-        // Waehrungs-Cookie (dieselbe Einstellung wie im Shop-Menue) stellt auf Euro.
-        $de = $shop === 'amazon_de';
-        $h  = $de ? holen("https://www.amazon.de/dp/$ref", ['Accept-Language: de-DE,de;q=0.9', 'Cookie: i18n-prefs=EUR'])
-                  : holen("https://www.amazon.ca/dp/$ref");
+    if (isset(AMAZON[$shop])) {
+        // Amazon zeigt einem Server in der Schweiz Preise gern in CHF - das
+        // Waehrungs-Cookie (dieselbe Einstellung wie im Shop-Menue) stellt auf
+        // die Landeswaehrung. Kommt trotzdem CHF, wird der Preis verworfen.
+        [$domain, $sprache, $waehrung, $komma] = AMAZON[$shop];
+        $h = holen("https://www.$domain/dp/$ref", ["Accept-Language: $sprache", "Cookie: i18n-prefs=$waehrung"]);
+        $chf = fn(string $text) => stripos($text, 'CHF') !== false
+            ? throw new RuntimeException("$domain showed the price in CHF instead of $waehrung") : $text;
         if (stripos($h, 'captcha') !== false && stripos($h, 'productTitle') === false) throw new RuntimeException('Amazon is asking for a captcha');
         preg_match('#id="productTitle"[^>]*>\s*(.*?)\s*<#s', $h, $t);
         preg_match('#data-old-hires="([^"]+)|"landingImageUrl":"([^"]+)#', $h, $b);
@@ -160,7 +182,7 @@ function abrufen(string $shop, string $ref): array
         if (preg_match('#twister-plus-buying-options-price-data">(.*?)</div>#s', $h, $j)) {
             foreach (json_decode(html_entity_decode($j[1]), true)['desktop_buybox_group_1'] ?? [] as $o) {
                 if (($o['buyingOptionType'] ?? '') !== 'NEW') continue;
-                if ($de && ($o['currencySymbol'] ?? '') !== '€') throw new RuntimeException('Amazon.de did not show the price in euros');
+                $chf(($o['currencySymbol'] ?? '') . ($o['displayPrice'] ?? ''));
                 $preis = zahl($o['priceAmount'] ?? null);
                 break;
             }
@@ -172,24 +194,28 @@ function abrufen(string $shop, string $ref): array
         // "Normalpreis"/"Non-Deal Price", "Spar-Abo", "Gebraucht".
         // Preis = Angebot, sonst Normalpreis; der Normalpreis wird Streichpreis.
         // Werte nur aus der jeweiligen Zeile, nie von woanders auf der Seite.
-        $zeile = function (string $id) use ($h, $de): ?float {
+        $zeile = function (string $id) use ($h, $komma, $chf): ?float {
             if (($i = strpos($h, 'id="' . $id)) === false) return null;
             if (!preg_match('#a-offscreen">\s*([^<]+)#', substr($h, $i, 5000), $m)) return null;
-            if ($de && strpos($m[1], '€') === false) throw new RuntimeException('Amazon.de did not show the price in euros');
-            return betragLesen($m[1], $de);
+            return betragLesen($chf($m[1]), $komma);
         };
         $normal = null;
         if ($preis === null) {
             $normal = $zeile('newAccordionRow');
             $preis  = $zeile('primeSavingsUpsellAccordionRow') ?? $normal;
         }
+        // Amazon.com u. a. zeigen keinen Preis, wenn der Artikel nicht an den
+        // Standort des Servers (Schweiz) geliefert werden kann.
+        if ($preis === null && stripos($h, 'cannot be shipped to your selected delivery location') !== false) {
+            throw new RuntimeException("$domain shows no price for items that can't be shipped to Switzerland (where this server is)");
+        }
         if ($preis === null) throw new RuntimeException('No new offer on Amazon right now');
 
         // Streichpreis ("List Price") nur aus dem Preisblock des Artikels selbst
         $regulaer = null;
         if (($i = strpos($h, 'id="corePriceDisplay_desktop_feature_div"')) !== false
-            && preg_match('#data-a-strike="true"[^>]*>\s*<span class="a-offscreen">\$?([\d,.]+)#', substr($h, $i, 20000), $r)) {
-            $regulaer = betragLesen($r[1], $de);
+            && preg_match('#data-a-strike="true"[^>]*>\s*<span class="a-offscreen">([^<]+)#', substr($h, $i, 20000), $r)) {
+            $regulaer = betragLesen($r[1], $komma);
         }
         if ($normal !== null && $normal > $preis) $regulaer = max($regulaer ?? 0, $normal);
         return [html_entity_decode(trim($t[1])), ($b[1] ?? '') ?: ($b[2] ?? ''), $preis, $regulaer];
@@ -230,7 +256,7 @@ function einpflegen(array &$e, array $r): ?float
 
 function betrag(?float $p, array $e): string
 {
-    $zeichen = ['CAD' => 'CA$', 'EUR' => 'EUR'][$e['waehrung'] ?? 'CAD'] ?? '';
+    $zeichen = ['CAD' => 'CA$', 'USD' => 'US$', 'MXN' => 'MX$'][$e['waehrung'] ?? 'CAD'] ?? ($e['waehrung'] ?? '');
     return $p === null ? '-' : $zeichen . ' ' . number_format($p, 2, '.', "'");
 }
 

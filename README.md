@@ -1,7 +1,7 @@
 # Price Tracker
 
-Tracks product prices at Canadian online shops and Amazon.de and emails you
-when a price drops. Paste a Best Buy SKU, an Amazon ASIN or a product link,
+Tracks product prices at Canadian online shops and Amazon in nine countries
+and emails you when a price drops. Paste a Best Buy SKU, an Amazon ASIN or a product link,
 and the item stays on a shared list with its current price, the change since it was added,
 the lowest price seen and a small price-history chart. Plain PHP and
 JavaScript, no framework, no database.
@@ -13,7 +13,12 @@ Supported shops:
 | Best Buy Canada | SKU (`19837076`) or product link | Best Buy's public JSON product API |
 | Canada Computers | product link | schema.org data + `product:price:amount` meta tag |
 | Amazon.ca | ASIN (`B0…`) or product link | the *new* offer of the buy box only (no used offers, no prices of recommended products); with the multi-row buy box the deal price if there is one, the regular price as strike-through |
-| Amazon.de | product link | same as Amazon.ca, prices in EUR (the currency cookie is set, otherwise Amazon shows a Swiss server CHF) |
+| Amazon .com, .com.mx, .de, .fr, .it, .nl, .com.be, .se | product link | same as Amazon.ca, in the local currency (USD, MXN, EUR, SEK) — the currency cookie is set, otherwise Amazon shows a Swiss server CHF |
+
+Amazon only shows a price for items it can deliver to where the server is.
+On Amazon.com many items can't be shipped to Switzerland; the tracker reports
+that instead of a price. Amazon.co.uk and Amazon.es load but show no readable
+price; Amazon.pl, .co.jp and .com.au don't serve product pages to the server.
 
 Newegg.ca, Staples.ca, Memory Express, Walmart.ca, London Drugs, Visions,
 Mindfactory and Geizhals answer server requests with a bot check (Cloudflare, PerimeterX or

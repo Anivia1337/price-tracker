@@ -25,8 +25,14 @@
 
   const leer = $("leer"), meldung = $("meldung"), form = $("neu"), anzahl = $("anzahl-ca");
   const vorlage = $("vorlage").content.firstElementChild;
-  const SHOPS = { bestbuy: "Best Buy", cc: "Canada Computers", amazon: "Amazon.ca", amazon_de: "Amazon.de" };
-  const LAND  = { bestbuy: "ca", cc: "ca", amazon: "ca", amazon_de: "de" };
+  const SHOPS = {
+    bestbuy: "Best Buy", cc: "Canada Computers", amazon: "Amazon.ca", amazon_us: "Amazon.com", amazon_mx: "Amazon.com.mx",
+    amazon_de: "Amazon.de", amazon_fr: "Amazon.fr", amazon_it: "Amazon.it", amazon_nl: "Amazon.nl", amazon_be: "Amazon.com.be", amazon_se: "Amazon.se",
+  };
+  const LAND = {
+    bestbuy: "ca", cc: "ca", amazon: "ca", amazon_us: "us", amazon_mx: "mx",
+    amazon_de: "de", amazon_fr: "fr", amazon_it: "it", amazon_nl: "nl", amazon_be: "be", amazon_se: "se",
+  };
   // Eintraege ohne "waehrung" sind aus der Zeit, als es nur kanadische Shops gab
   const formate = {};
   const geld = (e) => formate[e.waehrung || "CAD"] ||= new Intl.NumberFormat("en-CH", { style: "currency", currency: e.waehrung || "CAD" });

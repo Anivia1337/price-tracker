@@ -13,7 +13,7 @@
 <section class="bereich tracker" aria-labelledby="t-ca">
   <div class="bereich-kopf">
     <h2 id="t-ca">Tracked prices <span class="zahl" id="anzahl-ca"></span></h2>
-    <p>Best Buy Canada, Canada Computers and Amazon.ca in CAD, Amazon.de in EUR &mdash; checked every hour.</p>
+    <p>Best Buy Canada, Canada Computers and Amazon in Canada, the US, Mexico, Germany, France, Italy, the Netherlands, Belgium and Sweden &mdash; checked every hour.</p>
   </div>
   <form id="neu" class="eingabe" autocomplete="off">
     <label class="nurlesbar" for="eingabe">SKU, ASIN or product link</label>
