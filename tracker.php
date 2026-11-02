@@ -120,7 +120,12 @@ function zahl($v): ?float
 }
 
 // Amazon-Laender: Shop-Kennung => [Domain, Sprache, Waehrung, Dezimalkomma,
-// Postleitzahl fuer den Lieferort (nur wo noetig, siehe lieferort_setzen)].
+// Postleitzahl fuer den Lieferort]. Die Postleitzahl ist dort noetig, wo
+// Amazon den Server als "Schweiz" erkennt: .com zeigt dann vieles ohne Preis,
+// .de/.fr/.it zeigen Preise ohne ihre Mehrwertsteuer (Ninja auf .de: 196,60 €
+// statt 216,42 € in Berlin). Gemessen am 2026-11-02; .nl/.com.be/.se/.com.mx/
+// .ca/.com.br zeigen ohne Einstellung schon Inlandspreise (NL/BE nehmen auch
+// gar keine Postleitzahl an).
 // Geprueft am 2026-11-02 von cernserver aus. Nicht dabei: amazon.co.uk und
 // amazon.es (Seite kommt, Preis nicht lesbar), .pl/.co.jp/.com.au (keine
 // Produktseiten). "amazon" ist Amazon.ca - die Kennung stammt aus der Zeit,
@@ -129,9 +134,10 @@ const AMAZON = [
     'amazon'    => ['amazon.ca',     'en-CA', 'CAD', false],
     'amazon_us' => ['amazon.com',    'en-US', 'USD', false, '10001'],   // New York
     'amazon_mx' => ['amazon.com.mx', 'es-MX', 'MXN', false],
-    'amazon_de' => ['amazon.de',     'de-DE', 'EUR', true],
-    'amazon_fr' => ['amazon.fr',     'fr-FR', 'EUR', true],
-    'amazon_it' => ['amazon.it',     'it-IT', 'EUR', true],
+    'amazon_br' => ['amazon.com.br', 'pt-BR', 'BRL', true],
+    'amazon_de' => ['amazon.de',     'de-DE', 'EUR', true, '10115'],    // Berlin
+    'amazon_fr' => ['amazon.fr',     'fr-FR', 'EUR', true, '75001'],    // Paris
+    'amazon_it' => ['amazon.it',     'it-IT', 'EUR', true, '00118'],    // Rom
     'amazon_nl' => ['amazon.nl',     'nl-NL', 'EUR', true],
     'amazon_be' => ['amazon.com.be', 'fr-BE', 'EUR', true],
     'amazon_se' => ['amazon.se',     'sv-SE', 'SEK', true],
@@ -140,7 +146,7 @@ const AMAZON = [
 // Waehrung je Shop. Eintraege ohne Feld "waehrung" stammen aus der Zeit, als
 // es nur kanadische Shops gab, und sind CAD.
 const WAEHRUNG = ['bestbuy' => 'CAD', 'cc' => 'CAD'] + [
-    'amazon' => 'CAD', 'amazon_us' => 'USD', 'amazon_mx' => 'MXN', 'amazon_de' => 'EUR', 'amazon_fr' => 'EUR',
+    'amazon' => 'CAD', 'amazon_us' => 'USD', 'amazon_mx' => 'MXN', 'amazon_br' => 'BRL', 'amazon_de' => 'EUR', 'amazon_fr' => 'EUR',
     'amazon_it' => 'EUR', 'amazon_nl' => 'EUR', 'amazon_be' => 'EUR', 'amazon_se' => 'SEK',
 ];
 
@@ -174,7 +180,7 @@ function erkennen(string $in): array
         $url = "https://www.canadacomputers.com$pfad";
         return ['cc', $url, $url];
     }
-    throw new InvalidArgumentException('Not recognised. Enter a Best Buy SKU, an Amazon.ca ASIN or a product link from bestbuy.ca, canadacomputers.com or Amazon (.ca, .com, .com.mx, .de, .fr, .it, .nl, .com.be, .se).');
+    throw new InvalidArgumentException('Not recognised. Enter a Best Buy SKU, an Amazon.ca ASIN or a product link from bestbuy.ca, canadacomputers.com or Amazon (.ca, .com, .com.mx, .com.br, .de, .fr, .it, .nl, .com.be, .se).');
 }
 
 // -> [titel, bild, preis, regulaer]
@@ -197,6 +203,15 @@ function abrufen(string $shop, string $ref): array
         $h    = holen("https://www.$domain/dp/$ref", $kopf, $jar);
         if ($plz && !preg_match('#id="glow-ingress-line2"[^>]*>[^<]*' . $plz . '#', $h)) {
             lieferort_setzen($domain, $h, $plz, $kopf, $jar);
+            $h = holen("https://www.$domain/dp/$ref", $kopf, $jar);
+        }
+        // Amazon liefert gelegentlich eine Seite mit leerer Kaufbox, obwohl der
+        // Artikel lieferbar ist (Amazon.com.br bei jedem zweiten bis dritten
+        // Abruf). Dann bis zu zweimal neu laden.
+        $kaufbox = fn(string $h) => strpos($h, 'twister-plus-buying-options-price-data') !== false
+            || strpos($h, 'id="newAccordionRow') !== false || stripos($h, 'cannot be shipped') !== false;
+        for ($versuch = 1; $versuch < 3 && !$kaufbox($h); $versuch++) {
+            usleep(1500000);
             $h = holen("https://www.$domain/dp/$ref", $kopf, $jar);
         }
         $chf = fn(string $text) => stripos($text, 'CHF') !== false
@@ -288,7 +303,7 @@ function einpflegen(array &$e, array $r): ?float
 
 function betrag(?float $p, array $e): string
 {
-    $zeichen = ['CAD' => 'CA$', 'USD' => 'US$', 'MXN' => 'MX$'][$e['waehrung'] ?? 'CAD'] ?? ($e['waehrung'] ?? '');
+    $zeichen = ['CAD' => 'CA$', 'USD' => 'US$', 'MXN' => 'MX$', 'BRL' => 'R$'][$e['waehrung'] ?? 'CAD'] ?? ($e['waehrung'] ?? '');
     return $p === null ? '-' : $zeichen . ' ' . number_format($p, 2, '.', "'");
 }
 

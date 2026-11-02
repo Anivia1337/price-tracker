@@ -1,6 +1,6 @@
 # Price Tracker
 
-Tracks product prices at Canadian online shops and Amazon in nine countries
+Tracks product prices at Canadian online shops and Amazon in ten countries
 and emails you when a price drops. Paste a Best Buy SKU, an Amazon ASIN or a product link,
 and the item stays on a shared list with its current price, the change since it was added,
 the lowest price seen and a small price-history chart. Plain PHP and
@@ -13,14 +13,18 @@ Supported shops:
 | Best Buy Canada | SKU (`19837076`) or product link | Best Buy's public JSON product API |
 | Canada Computers | product link | schema.org data + `product:price:amount` meta tag |
 | Amazon.ca | ASIN (`B0…`) or product link | the *new* offer of the buy box only (no used offers, no prices of recommended products); with the multi-row buy box the deal price if there is one, the regular price as strike-through |
-| Amazon .com, .com.mx, .de, .fr, .it, .nl, .com.be, .se | product link | same as Amazon.ca, in the local currency (USD, MXN, EUR, SEK) — the currency cookie is set, otherwise Amazon shows a Swiss server CHF |
+| Amazon .com, .com.mx, .com.br, .de, .fr, .it, .nl, .com.be, .se | product link | same as Amazon.ca, in the local currency (USD, MXN, BRL, EUR, SEK) — the currency cookie is set, otherwise Amazon shows a Swiss server CHF |
 
-Amazon only shows a price for items it can deliver to where the server is.
-For Amazon.com the tracker therefore sets the delivery location to ZIP 10001
-(New York) — the same "Deliver to" setting every visitor has, no account —
-and keeps it in `data/cookies-amazon_us.txt`. Other markets don't need this;
-where an item can't be shipped to Switzerland, the tracker says so instead of
-showing a price. Amazon.co.uk and Amazon.es load but show no readable
+Prices are meant for people living in each country. Amazon prices depend on
+the delivery location, and it recognises the server as being in Switzerland:
+Amazon.com then hides the price of most items, Amazon.de/.fr/.it show prices
+without their VAT (e.g. 196.60 € instead of 216.42 € in Berlin). The tracker
+therefore sets a local delivery location — the same "Deliver to" + ZIP
+setting every visitor has, no account — for Amazon.com (10001 New York),
+.de (10115 Berlin), .fr (75001 Paris) and .it (00118 Rome), kept in
+`data/cookies-<shop>.txt`. The other markets already show domestic prices.
+Amazon sometimes serves a page with an empty buy box (often on .com.br); the
+tracker then reloads up to twice. Amazon.co.uk and Amazon.es load but show no readable
 price; Amazon.pl, .co.jp and .com.au don't serve product pages to the server.
 
 Newegg.ca, Staples.ca, Memory Express, Walmart.ca, London Drugs, Visions,
