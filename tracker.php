@@ -68,9 +68,13 @@ function aendern(callable $fn, string $datei = DATEI)
 
 // ---- Abruf -----------------------------------------------------------------
 
-function holen(string $url, array $kopf = []): string
+// $jar: Cookie-Datei, in der Amazon den gewaehlten Lieferort ablegt.
+// $post: Rumpf einer POST-Anfrage.
+function holen(string $url, array $kopf = [], ?string $jar = null, ?string $post = null): string
 {
     $c = curl_init($url);
+    if ($jar !== null) curl_setopt_array($c, [CURLOPT_COOKIEFILE => $jar, CURLOPT_COOKIEJAR => $jar]);
+    if ($post !== null) curl_setopt_array($c, [CURLOPT_POST => true, CURLOPT_POSTFIELDS => $post]);
     curl_setopt_array($c, [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_FOLLOWLOCATION => true,
@@ -87,6 +91,27 @@ function holen(string $url, array $kopf = []): string
     return $body;
 }
 
+// Lieferort setzen - dasselbe wie "Deliver to" + Postleitzahl im Shop, ohne
+// Konto. Amazon.com zeigt einem Server in der Schweiz sonst fuer alles, was
+// nicht in die Schweiz verschickt wird, keinen Preis. Der Ort landet in den
+// Sitzungs-Cookies ($jar) und gilt fuer die folgenden Abrufe.
+function lieferort_setzen(string $domain, string $seite, string $plz, array $kopf, string $jar): void
+{
+    if (!preg_match('#id="nav-global-location-data-modal-action"[^>]*data-a-modal=\'([^\']+)\'#', $seite, $m)) {
+        throw new RuntimeException("$domain: delivery location can't be set on this page");
+    }
+    $modal = json_decode(html_entity_decode($m[1]), true);
+    $ajax  = array_merge($kopf, ['X-Requested-With: XMLHttpRequest']);
+    $auswahl = holen("https://www.$domain" . ($modal['url'] ?? ''),
+        array_merge($ajax, ['anti-csrftoken-a2z: ' . ($modal['ajaxHeaders']['anti-csrftoken-a2z'] ?? '')]), $jar);
+    if (!preg_match('#CSRF_TOKEN\s*:\s*"([^"]+)"#', $auswahl, $t)) throw new RuntimeException("$domain: delivery location form not found");
+    $antwort = holen("https://www.$domain/portal-migration/hz/glow/address-change?actionSource=glow",
+        array_merge($ajax, ["anti-csrftoken-a2z: {$t[1]}", 'Content-Type: application/json']), $jar,
+        json_encode(['locationType' => 'LOCATION_INPUT', 'zipCode' => $plz, 'deviceType' => 'web',
+                     'storeContext' => 'generic', 'pageType' => 'Detail', 'actionSource' => 'glow']));
+    if (strpos($antwort, '"successful":1') === false) throw new RuntimeException("$domain didn't accept the delivery location $plz");
+}
+
 function zahl($v): ?float
 {
     if ($v === null || $v === '') return null;
@@ -94,14 +119,15 @@ function zahl($v): ?float
     return is_numeric($v) ? (float) $v : null;
 }
 
-// Amazon-Laender: Shop-Kennung => [Domain, Sprache, Waehrung, Dezimalkomma].
+// Amazon-Laender: Shop-Kennung => [Domain, Sprache, Waehrung, Dezimalkomma,
+// Postleitzahl fuer den Lieferort (nur wo noetig, siehe lieferort_setzen)].
 // Geprueft am 2026-11-02 von cernserver aus. Nicht dabei: amazon.co.uk und
 // amazon.es (Seite kommt, Preis nicht lesbar), .pl/.co.jp/.com.au (keine
 // Produktseiten). "amazon" ist Amazon.ca - die Kennung stammt aus der Zeit,
 // als es nur Kanada gab.
 const AMAZON = [
     'amazon'    => ['amazon.ca',     'en-CA', 'CAD', false],
-    'amazon_us' => ['amazon.com',    'en-US', 'USD', false],
+    'amazon_us' => ['amazon.com',    'en-US', 'USD', false, '10001'],   // New York
     'amazon_mx' => ['amazon.com.mx', 'es-MX', 'MXN', false],
     'amazon_de' => ['amazon.de',     'de-DE', 'EUR', true],
     'amazon_fr' => ['amazon.fr',     'fr-FR', 'EUR', true],
@@ -165,8 +191,14 @@ function abrufen(string $shop, string $ref): array
         // Amazon zeigt einem Server in der Schweiz Preise gern in CHF - das
         // Waehrungs-Cookie (dieselbe Einstellung wie im Shop-Menue) stellt auf
         // die Landeswaehrung. Kommt trotzdem CHF, wird der Preis verworfen.
-        [$domain, $sprache, $waehrung, $komma] = AMAZON[$shop];
-        $h = holen("https://www.$domain/dp/$ref", ["Accept-Language: $sprache", "Cookie: i18n-prefs=$waehrung"]);
+        [$domain, $sprache, $waehrung, $komma, $plz] = AMAZON[$shop] + [4 => null];
+        $kopf = ["Accept-Language: $sprache", "Cookie: i18n-prefs=$waehrung"];
+        $jar  = $plz ? __DIR__ . "/data/cookies-$shop.txt" : null;
+        $h    = holen("https://www.$domain/dp/$ref", $kopf, $jar);
+        if ($plz && !preg_match('#id="glow-ingress-line2"[^>]*>[^<]*' . $plz . '#', $h)) {
+            lieferort_setzen($domain, $h, $plz, $kopf, $jar);
+            $h = holen("https://www.$domain/dp/$ref", $kopf, $jar);
+        }
         $chf = fn(string $text) => stripos($text, 'CHF') !== false
             ? throw new RuntimeException("$domain showed the price in CHF instead of $waehrung") : $text;
         if (stripos($h, 'captcha') !== false && stripos($h, 'productTitle') === false) throw new RuntimeException('Amazon is asking for a captcha');

@@ -16,8 +16,11 @@ Supported shops:
 | Amazon .com, .com.mx, .de, .fr, .it, .nl, .com.be, .se | product link | same as Amazon.ca, in the local currency (USD, MXN, EUR, SEK) — the currency cookie is set, otherwise Amazon shows a Swiss server CHF |
 
 Amazon only shows a price for items it can deliver to where the server is.
-On Amazon.com many items can't be shipped to Switzerland; the tracker reports
-that instead of a price. Amazon.co.uk and Amazon.es load but show no readable
+For Amazon.com the tracker therefore sets the delivery location to ZIP 10001
+(New York) — the same "Deliver to" setting every visitor has, no account —
+and keeps it in `data/cookies-amazon_us.txt`. Other markets don't need this;
+where an item can't be shipped to Switzerland, the tracker says so instead of
+showing a price. Amazon.co.uk and Amazon.es load but show no readable
 price; Amazon.pl, .co.jp and .com.au don't serve product pages to the server.
 
 Newegg.ca, Staples.ca, Memory Express, Walmart.ca, London Drugs, Visions,
